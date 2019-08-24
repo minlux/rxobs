@@ -75,9 +75,10 @@ private:
    SubscribeHandler subscribeHandler;
    MappingObserver<V,E> * mappingObserver;
    Observable * mappingObservable;
+   V value;
    V const * values;
    size_t valuesCount;
-   E const * err;
+   E err;
 
 
 private:
@@ -98,7 +99,7 @@ private:
    Subscription * subscribeHandler_of(Observer<V,E> * observer)
    {
       //call (the one and only) "next"
-      observer->next(*values);
+      observer->next(value);
       //finally complete
       observer->complete();
       //prevent further invocation, by setting the handler fuction to NULL (as the observable has completed now!)
@@ -128,7 +129,7 @@ private:
    Subscription * subscribeHandler_throwError(Observer<V,E> * observer)
    {
       //call error
-      observer->error(*err);
+      observer->error(err);
       //finally complete
       observer->complete();
       //prevent further invocation, by setting the handler fuction to NULL (as the observable has completed now!)
@@ -163,12 +164,11 @@ private:
 public:
 
    //factory function to construct a observable that emits a single value
-   static Observable * of(V const & value) //value is reference to a const V
+   static Observable * of(V value) //call by value
    {
       Observable * thiz = new Observable();
       thiz->subscribeHandler = &Observable::subscribeHandler_of;
-      thiz->values = &value;
-      // thiz->valuesCount = 1;
+      thiz->value = value; //store a copy the value
       return thiz;
    }
 
@@ -177,17 +177,17 @@ public:
    {
       Observable * thiz = new Observable();
       thiz->subscribeHandler = &Observable::subscribeHandler_from;
-      thiz->values = values;
+      thiz->values = values; //store pointer to the values
       thiz->valuesCount = count;
       return thiz;
    }
 
    //factory function to construct a observable that emits an error
-   static Observable * throwError(E const & err)
+   static Observable * throwError(E err) //call by value
    {
       Observable * thiz = new Observable();
       thiz->subscribeHandler = &Observable::subscribeHandler_throwError;
-      thiz->err = &err;
+      thiz->err = err; //make a copy
       return thiz;
    }
 
