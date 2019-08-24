@@ -1,4 +1,4 @@
-# RxObs A *RxJS like* observable implementation in C++ (for training purposes)
+# A *RxJS like* observable implementation in C++ (for training purposes)
 
 This pice of code was inspired by the *Federico Knüssel's* great articel explaining the
 the functionality of RxJS's observables.
