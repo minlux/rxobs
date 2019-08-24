@@ -83,3 +83,28 @@ OK, just for testing: I am going to subscribe to the Error-Observable, a second 
  But normally the nothing should happen any more, as the observable should already be completed!
 Now I am going to unsubscribe from that Error-Observable.
 ```
+
+## Additional
+Additional you can see in this project how to use C++ function to method pointers.
+This is always a bit tricky (at least for me) how such function pointers a declared, assigned 
+and invocated.
+
+A declaration (by help of a typedef) is like that:
+```
+typedef Subscription * (Observable::*SubscribeHandler)(Observer<V,E> * observer);
+SubscribeHandler subscribeHandler;
+```
+
+Assignment requires the right hand side to be "full qualifiied". 
+That means the preceding socpe (Observable::) is mandatory:
+```
+thiz->subscribeHandler = &Observable::subscribeHanlder_from;
+```
+
+Invocation requires the function pointer to be wrapped in parentheses and using the `->*` operator 
+together with the instance object (in this case `this`):
+```
+(this->*subscribeHandler)(&observer);
+```
+
+
