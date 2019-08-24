@@ -139,7 +139,7 @@ private:
 
 
    //this is the method that is called when someone subscribes to the observable that was constructed...
-   //...using using the "map" method of another observable
+   //... using the "map" method of another observable
    Subscription * subscribeHandler_map(Observer<V,E> * observer)
    {
       mappingObserver->observer = observer;
@@ -192,6 +192,17 @@ public:
    }
 
 
+   //create a new Observable, that emits the "next-values" of this stream transformed by the given transformation function
+   Observable * map(MappingObserver<V,E> & mappingObserver)
+   {
+      Observable * newobs = new Observable();
+      newobs->subscribeHandler = &Observable::subscribeHandler_map;
+      newobs->mappingObserver = &mappingObserver;
+      newobs->mappingObservable = this;
+      return newobs;
+   }
+
+
    //this method is a wrapper to call the respective subscribe handler method, set at construction
    Subscription * subscribe(Observer<V,E> & observer)
    {
@@ -206,16 +217,6 @@ public:
       return this; //as Observable derives from Subscription it is very easy at this point to return an Subscription object
    }
 
-
-   //create a new Observable, that emits the "next-values" of this stream transformed by the given transformation function
-   Observable * map(MappingObserver<V,E> & mappingObserver)
-   {
-      Observable * newobs = new Observable();
-      newobs->subscribeHandler = &Observable::subscribeHandler_map;
-      newobs->mappingObserver = &mappingObserver;
-      newobs->mappingObservable = this;
-      return newobs;
-   }
 };
 
 
