@@ -33,13 +33,6 @@ using std::string;
 /* -- Types --------------------------------------------------------------- */
 
 
-class Subscription
-{
-public:
-   virtual void unsubscribe() = 0;
-
-};
-
 
 template <typename V, typename E>
 class Observer
@@ -48,6 +41,24 @@ public:
    virtual void next(V const & value) = 0;
    virtual void error(E const & err) = 0;
    virtual void complete() = 0;
+};
+
+
+//this is an intermediate observer, that is used in combination with the map functionality!!!
+template <typename V, typename E>
+class MappingObserver : public Observer<V,E>
+{
+public:
+   Observer<V,E> * observer; //the actuall observer that wants to get notified
+};
+
+
+
+class Subscription
+{
+public:
+   virtual void unsubscribe() = 0;
+
 };
 
 
@@ -60,7 +71,10 @@ private:
    //(that takes an pointer to an observer and returns an pointer to a subscription object)
    typedef Subscription * (Observable::*SubscribeHandler)(Observer<V,E> * observer);
 
+
    SubscribeHandler subscribeHandler;
+   MappingObserver<V,E> * mappingObserver;
+   Observable * mappingObservable;
    V const * values;
    size_t valuesCount;
    E const * err;
@@ -72,6 +86,7 @@ private:
    Observable()
    {
       this->subscribeHandler = nullptr;
+      this->mappingObservable = nullptr;
       this->values = nullptr;
       this->valuesCount = 0;
       this->err = nullptr;
@@ -80,7 +95,7 @@ private:
 
    //this is the method that is called when someone subscribes to the observable that was constructed...
    //...using the "of" method
-   Subscription * subscribeHanlder_of(Observer<V,E> * observer)
+   Subscription * subscribeHandler_of(Observer<V,E> * observer)
    {
       //call (the one and only) "next"
       observer->next(*values);
@@ -95,7 +110,7 @@ private:
 
    //this is the method that is called when someone subscribes to the observable that was constructed...
    //...using the "from" method
-   Subscription * subscribeHanlder_from(Observer<V,E> * observer)
+   Subscription * subscribeHandler_from(Observer<V,E> * observer)
    {
       //call one "next" after the other
       for (size_t i = 0; i < valuesCount; i++) observer->next(values[i]);
@@ -110,7 +125,7 @@ private:
 
    //this is the method that is called when someone subscribes to the observable that was constructed...
    //...using the "throwError" method
-   Subscription * subscribeHanlder_throwError(Observer<V,E> * observer)
+   Subscription * subscribeHandler_throwError(Observer<V,E> * observer)
    {
       //call error
       observer->error(*err);
@@ -121,6 +136,17 @@ private:
       //as Observable derives from Subscription it is very easy at this point to return an Subscription object
       return this;
    }
+
+
+   //this is the method that is called when someone subscribes to the observable that was constructed...
+   //...using using the "map" method of another observable
+   Subscription * subscribeHandler_map(Observer<V,E> * observer)
+   {
+      mappingObserver->observer = observer;
+      return mappingObservable->subscribe(*mappingObserver);
+      //TBD return subscription object of the mapping-observable or of "this"???
+   }
+
 
 
    //this method implements Subscription::unsubscribe
@@ -136,31 +162,31 @@ private:
 
 public:
 
-   //factory function to construct a observable for emits a single value
+   //factory function to construct a observable that emits a single value
    static Observable * of(V const & value) //value is reference to a const V
    {
       Observable * thiz = new Observable();
-      thiz->subscribeHandler = &Observable::subscribeHanlder_of;
+      thiz->subscribeHandler = &Observable::subscribeHandler_of;
       thiz->values = &value;
       // thiz->valuesCount = 1;
       return thiz;
    }
 
-   //factory function to construct a observable for emits a series of values
+   //factory function to construct a observable that emits a series of values
    static Observable * from(V const * values, size_t count) //values is pointer to (array of) const V(s)
    {
       Observable * thiz = new Observable();
-      thiz->subscribeHandler = &Observable::subscribeHanlder_from;
+      thiz->subscribeHandler = &Observable::subscribeHandler_from;
       thiz->values = values;
       thiz->valuesCount = count;
       return thiz;
    }
 
-   //factory function to construct a observable for emits an error
+   //factory function to construct a observable that emits an error
    static Observable * throwError(E const & err)
    {
       Observable * thiz = new Observable();
-      thiz->subscribeHandler = &Observable::subscribeHanlder_throwError;
+      thiz->subscribeHandler = &Observable::subscribeHandler_throwError;
       thiz->err = &err;
       return thiz;
    }
@@ -173,11 +199,22 @@ public:
       if (this->subscribeHandler != nullptr)
       {
          //use c++ function-/method-pointer to...
-         return (this->*subscribeHandler)(&observer); //...call either subscribeHanlder_of/.._from/.._throwError
+         return (this->*subscribeHandler)(&observer); //...call either subscribeHandler_of/.._from/.._throwError
       }
       //otherwise: the observable has already completed
       //subscription has no further effect, than just returning an Subscription object
       return this; //as Observable derives from Subscription it is very easy at this point to return an Subscription object
+   }
+
+
+   //create a new Observable, that emits the "next-values" of this stream transformed by the given transformation function
+   Observable * map(MappingObserver<V,E> & mappingObserver)
+   {
+      Observable * newobs = new Observable();
+      newobs->subscribeHandler = &Observable::subscribeHandler_map;
+      newobs->mappingObserver = &mappingObserver;
+      newobs->mappingObservable = this;
+      return newobs;
    }
 };
 
@@ -217,6 +254,40 @@ public:
    {
       cout << id << ": complete!" << endl;
    }
+};
+
+
+
+//demo of an observer, that maps values and forwards everything the to "actual subscriber"
+class IntMapObserver : public MappingObserver<int, char const *>
+{
+public:
+   IntMapObserver()
+   {
+      forward = true;
+   }
+
+   void next(int const & value)
+   {
+      if (forward) //forward only every seconde value!!!
+      {
+         this->observer->next(2 * value); //double value and forward the the subscriber
+      }
+      forward = !forward; //toggle
+   }
+
+   void error(char const * const & err)
+   {
+      this->observer->error(err); //forward (unmodifed) error to subscriber
+   }
+
+   void complete()
+   {
+      this->observer->complete(); //forward complete to subscriber
+   }
+
+private:
+   bool forward;
 };
 
 
@@ -263,6 +334,31 @@ int main(int argc, char * argv[])
    cout << "Now I am going to unsubscribe from that Integer-Series-Observable." << endl;
    mySubscription->unsubscribe();
    cout << endl;
+
+
+   cout << "--------------- TEST CASE 'map' ---------------" << endl;
+   cout << "Creating a Integer-Series-Observable, that emits a series of integer values before it completes." << endl;
+   intSeriesObservable = IntObservable::from(series, 7);
+
+   cout << "Map that Observable to another Observable by means of an inermediate mapping observer." << endl;
+   cout << "The mapping observable forwards only every seconde value. The forwarded value will be doubled." << endl;
+   IntMapObserver myMappingObserver;
+   IntObservable * mappedSeriesObservable = intSeriesObservable->map(myMappingObserver);
+
+   cout << "Now I am going to subscribe to the Mapped-Series-Observable." << endl;
+   mySubscription = mappedSeriesObservable->subscribe(myIntObserver);
+
+   cout << "OK, just for testing: I am going to subscribe to the Mapped-Series-Observable, a second time..." << endl;
+   cout << " But normally nothing should happen any more, as the observable should already be completed!" << endl;
+   mySubscription = mappedSeriesObservable->subscribe(myIntObserver);
+
+   cout << "Now I am going to unsubscribe from that Integer-Series-Observable." << endl;
+   mySubscription->unsubscribe();
+   cout << endl;
+
+
+
+
 
 
    cout << "--------------- TEST CASE 'throwError' ---------------" << endl;
